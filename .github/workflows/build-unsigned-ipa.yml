@@ -1,0 +1,159 @@
+name: Build unsigned IPA
+
+# Fork build: produces an UNSIGNED release IPA (no Apple Developer
+# account needed). Install it by sideloading with AltStore / Sideloadly
+# using your own Apple ID.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          channel: "stable"
+          cache: true
+
+      - name: Create Firebase stub files (no real Firebase project in fork)
+        run: |
+          cat > lib/firebase_options.dart <<'DART_EOF'
+          // Stub Firebase options for unsigned fork builds.
+          // The real file is generated from the author's private Firebase
+          // project (see scripts/setup_flavor.dart). These dummy values let
+          // the app compile and launch; crash reporting simply won't upload.
+          // ignore_for_file: type=lint
+          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+          import 'package:flutter/foundation.dart'
+              show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+          /// Default [FirebaseOptions] for use with your Firebase apps.
+          class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform {
+              if (kIsWeb) {
+                throw UnsupportedError(
+                  'DefaultFirebaseOptions have not been configured for web.',
+                );
+              }
+              switch (defaultTargetPlatform) {
+                case TargetPlatform.android:
+                  return android;
+                case TargetPlatform.iOS:
+                  return ios;
+                case TargetPlatform.macOS:
+                  return macos;
+                case TargetPlatform.windows:
+                  return windows;
+                case TargetPlatform.linux:
+                  throw UnsupportedError(
+                    'DefaultFirebaseOptions have not been configured for linux.',
+                  );
+                default:
+                  throw UnsupportedError(
+                    'DefaultFirebaseOptions are not supported for this platform.',
+                  );
+              }
+            }
+
+            static const FirebaseOptions android = FirebaseOptions(
+              apiKey: 'dummy',
+              appId: '1:000000000000:android:0000000000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'dummy',
+              storageBucket: 'dummy.appspot.com',
+            );
+
+            static const FirebaseOptions ios = FirebaseOptions(
+              apiKey: 'dummy',
+              appId: '1:000000000000:ios:0000000000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'dummy',
+              storageBucket: 'dummy.appspot.com',
+              iosBundleId: 'com.julianschroden.cineRemote',
+            );
+
+            static const FirebaseOptions macos = FirebaseOptions(
+              apiKey: 'dummy',
+              appId: '1:000000000000:ios:0000000000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'dummy',
+              storageBucket: 'dummy.appspot.com',
+              iosBundleId: 'com.julianschroden.cineRemote',
+            );
+
+            static const FirebaseOptions windows = FirebaseOptions(
+              apiKey: 'dummy',
+              appId: '1:000000000000:web:0000000000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'dummy',
+              authDomain: 'dummy.firebaseapp.com',
+              storageBucket: 'dummy.appspot.com',
+            );
+          }
+          DART_EOF
+
+          cat > ios/Runner/GoogleService-Info.plist <<'PLIST_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key>
+            <string>dummy</string>
+            <key>GCM_SENDER_ID</key>
+            <string>000000000000</string>
+            <key>PLIST_VERSION</key>
+            <string>1</string>
+            <key>BUNDLE_ID</key>
+            <string>com.julianschroden.cineRemote</string>
+            <key>PROJECT_ID</key>
+            <string>dummy</string>
+            <key>STORAGE_BUCKET</key>
+            <string>dummy.appspot.com</string>
+            <key>IS_ADS_ENABLED</key>
+            <false/>
+            <key>IS_ANALYTICS_ENABLED</key>
+            <false/>
+            <key>IS_APPINVITE_ENABLED</key>
+            <false/>
+            <key>IS_GCM_ENABLED</key>
+            <false/>
+            <key>IS_SIGNIN_ENABLED</key>
+            <true/>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:000000000000:ios:0000000000000000000000</string>
+          </dict>
+          </plist>
+          PLIST_EOF
+          echo "stub files created:"
+          ls -la lib/firebase_options.dart ios/Runner/GoogleService-Info.plist
+
+      - name: Disable Crashlytics dSYM upload script (no Firebase project in fork)
+        run: |
+          perl -i -pe 's{^(\s*)shellScript = .*FirebaseCrashlytics/upload-symbols.*$}{$1shellScript = "echo Skipping Crashlytics dSYM upload for unsigned fork build";}' ios/Runner.xcodeproj/project.pbxproj
+          grep -n "Skipping Crashlytics" ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          cd build/ios/iphoneos
+          rm -rf Payload cine_remote-unsigned.ipa
+          mkdir Payload
+          cp -R Runner.app Payload/
+          zip -qry cine_remote-unsigned.ipa Payload
+          ls -la cine_remote-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: cine-remote-unsigned-ipa
+          path: build/ios/iphoneos/cine_remote-unsigned.ipa
