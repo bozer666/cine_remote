@@ -20,83 +20,8 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Create Firebase stub files (no real Firebase project in fork)
+      - name: Create GoogleService-Info.plist stub (still referenced by Xcode project)
         run: |
-          cat > lib/firebase_options.dart <<'DART_EOF'
-          // Stub Firebase options for unsigned fork builds.
-          // The real file is generated from the author's private Firebase
-          // project (see scripts/setup_flavor.dart). These dummy values let
-          // the app compile and launch; crash reporting simply won't upload.
-          // ignore_for_file: type=lint
-          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-          import 'package:flutter/foundation.dart'
-              show defaultTargetPlatform, kIsWeb, TargetPlatform;
-
-          /// Default [FirebaseOptions] for use with your Firebase apps.
-          class DefaultFirebaseOptions {
-            static FirebaseOptions get currentPlatform {
-              if (kIsWeb) {
-                throw UnsupportedError(
-                  'DefaultFirebaseOptions have not been configured for web.',
-                );
-              }
-              switch (defaultTargetPlatform) {
-                case TargetPlatform.android:
-                  return android;
-                case TargetPlatform.iOS:
-                  return ios;
-                case TargetPlatform.macOS:
-                  return macos;
-                case TargetPlatform.windows:
-                  return windows;
-                case TargetPlatform.linux:
-                  throw UnsupportedError(
-                    'DefaultFirebaseOptions have not been configured for linux.',
-                  );
-                default:
-                  throw UnsupportedError(
-                    'DefaultFirebaseOptions are not supported for this platform.',
-                  );
-              }
-            }
-
-            static const FirebaseOptions android = FirebaseOptions(
-              apiKey: 'dummy',
-              appId: '1:000000000000:android:0000000000000000000000',
-              messagingSenderId: '000000000000',
-              projectId: 'dummy',
-              storageBucket: 'dummy.appspot.com',
-            );
-
-            static const FirebaseOptions ios = FirebaseOptions(
-              apiKey: 'dummy',
-              appId: '1:000000000000:ios:0000000000000000000000',
-              messagingSenderId: '000000000000',
-              projectId: 'dummy',
-              storageBucket: 'dummy.appspot.com',
-              iosBundleId: 'com.julianschroden.cineRemote',
-            );
-
-            static const FirebaseOptions macos = FirebaseOptions(
-              apiKey: 'dummy',
-              appId: '1:000000000000:ios:0000000000000000000000',
-              messagingSenderId: '000000000000',
-              projectId: 'dummy',
-              storageBucket: 'dummy.appspot.com',
-              iosBundleId: 'com.julianschroden.cineRemote',
-            );
-
-            static const FirebaseOptions windows = FirebaseOptions(
-              apiKey: 'dummy',
-              appId: '1:000000000000:web:0000000000000000000000',
-              messagingSenderId: '000000000000',
-              projectId: 'dummy',
-              authDomain: 'dummy.firebaseapp.com',
-              storageBucket: 'dummy.appspot.com',
-            );
-          }
-          DART_EOF
-
           cat > ios/Runner/GoogleService-Info.plist <<'PLIST_EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -129,10 +54,10 @@ jobs:
           </dict>
           </plist>
           PLIST_EOF
-          echo "stub files created:"
-          ls -la lib/firebase_options.dart ios/Runner/GoogleService-Info.plist
+          echo "stub plist created:"
+          ls -la ios/Runner/GoogleService-Info.plist
 
-      - name: Disable Crashlytics dSYM upload script (no Firebase project in fork)
+      - name: Disable Crashlytics dSYM upload script (plugin removed from fork)
         run: |
           perl -i -pe 's{^(\s*)shellScript = .*FirebaseCrashlytics/upload-symbols.*$}{$1shellScript = "echo Skipping Crashlytics dSYM upload for unsigned fork build";}' ios/Runner.xcodeproj/project.pbxproj
           grep -n "Skipping Crashlytics" ios/Runner.xcodeproj/project.pbxproj
